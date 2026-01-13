@@ -162,6 +162,34 @@ def extrair_arquivo_compactado_cliente(arquivo_path: str, tipo_esperado: str) ->
     except Exception as e:
         return None
 
+def converter_todos_bins():
+    """
+    FAILSAFE: Converte TODOS os .bin na pasta de downloads para formatos corretos.
+    Deve ser chamado periodicamente para garantir conversão mesmo que a sincronização falle.
+    
+    Returns:
+        Número de arquivos convertidos
+    """
+    convertidos = 0
+    try:
+        if not os.path.exists(DOWNLOADS_DIR):
+            return 0
+        
+        for arquivo in os.listdir(DOWNLOADS_DIR):
+            if arquivo.endswith('.bin'):
+                caminho = os.path.join(DOWNLOADS_DIR, arquivo)
+                novo_caminho = converter_bin_para_formato_correto(caminho)
+                if novo_caminho != caminho:
+                    convertidos += 1
+        
+        if convertidos > 0:
+            print(f"✅ FAILSAFE: Convertidos {convertidos} arquivos .bin")
+    except Exception as e:
+        print(f"❌ Erro em converter_todos_bins: {e}")
+    
+    return convertidos
+
+
 def converter_bin_para_formato_correto(arquivo_path: str) -> str:
     """
     Detecta o tipo real de um arquivo .bin e o converte para extensão correta
@@ -183,49 +211,86 @@ def converter_bin_para_formato_correto(arquivo_path: str) -> str:
         
         # Detectar tipo por magic bytes
         new_ext = None
+        tipo_detectado = None
         
+        # ZIP / Arquivo compactado (Google Drive, etc)
+        if magic_bytes[0:4] == b'PK\x03\x04':
+            new_ext = '.zip'
+            tipo_detectado = 'ZIP'
         # Vídeo MP4
-        if magic_bytes[4:8] == b'ftyp':
+        elif magic_bytes[4:8] == b'ftyp':
             new_ext = '.mp4'
+            tipo_detectado = 'MP4'
         # Vídeo MKV
         elif magic_bytes[0:4] == b'\x1A\x45\xDF\xA3':
             new_ext = '.mkv'
-        # Vídeo WebM
-        elif magic_bytes[0:4] == b'\x1A\x45\xDF\xA3':
-            new_ext = '.webm'
+            tipo_detectado = 'MKV'
+        # Vídeo WebM (RIFF)
+        elif magic_bytes[0:4] == b'RIFF' and len(magic_bytes) > 8:
+            if magic_bytes[8:12] == b'WEBM':
+                new_ext = '.webm'
+                tipo_detectado = 'WebM'
+            elif magic_bytes[8:12] == b'WAVE':
+                new_ext = '.wav'
+                tipo_detectado = 'WAV'
+            elif magic_bytes[8:12] == b'WEBP':
+                new_ext = '.webp'
+                tipo_detectado = 'WebP'
         # PNG
         elif magic_bytes[0:8] == b'\x89PNG\r\n\x1a\n':
             new_ext = '.png'
+            tipo_detectado = 'PNG'
         # JPEG
         elif magic_bytes[0:3] == b'\xFF\xD8\xFF':
             new_ext = '.jpg'
+            tipo_detectado = 'JPEG'
         # GIF
         elif magic_bytes[0:6] in (b'GIF87a', b'GIF89a'):
             new_ext = '.gif'
+            tipo_detectado = 'GIF'
         # BMP
         elif magic_bytes[0:2] == b'BM':
             new_ext = '.bmp'
-        # WebP
-        elif magic_bytes[0:4] == b'RIFF' and magic_bytes[8:12] == b'WEBP':
-            new_ext = '.webp'
-        # MP3
-        elif magic_bytes[0:3] == b'ID3' or magic_bytes[0:2] == b'\xFF\xFB':
+            tipo_detectado = 'BMP'
+        # MP3 (ID3 tag ou MPEG frame)
+        elif magic_bytes[0:3] == b'ID3':
             new_ext = '.mp3'
-        # WAV
-        elif magic_bytes[0:4] == b'RIFF' and magic_bytes[8:12] == b'WAVE':
-            new_ext = '.wav'
+            tipo_detectado = 'MP3'
+        elif magic_bytes[0:2] == b'\xFF\xFB' or magic_bytes[0:2] == b'\xFF\xFA':
+            new_ext = '.mp3'
+            tipo_detectado = 'MP3'
         # OGG
         elif magic_bytes[0:4] == b'OggS':
             new_ext = '.ogg'
+            tipo_detectado = 'OGG'
+        # FLAC
+        elif magic_bytes[0:4] == b'fLaC':
+            new_ext = '.flac'
+            tipo_detectado = 'FLAC'
+        # AAC
+        elif magic_bytes[0:2] == b'\xFF\xF1' or magic_bytes[0:2] == b'\xFF\xF9':
+            new_ext = '.aac'
+            tipo_detectado = 'AAC'
+        # M4A
+        elif magic_bytes[4:8] == b'ftyp' and b'm4a' in magic_bytes[:20]:
+            new_ext = '.m4a'
+            tipo_detectado = 'M4A'
         
         if new_ext:
             new_path = arquivo_path[:-4] + new_ext  # Remove .bin e adiciona extensão correta
-            os.rename(arquivo_path, new_path)
-            return new_path
+            try:
+                os.rename(arquivo_path, new_path)
+                print(f"✅ CONVERSÃO: {Path(arquivo_path).name} → {Path(new_path).name} ({tipo_detectado})")
+                return new_path
+            except Exception as rename_error:
+                print(f"❌ ERRO ao renomear: {rename_error}")
+                return arquivo_path
         else:
+            print(f"⚠️ AVISO: Tipo de arquivo .bin não identificado ({arquivo_path})")
             return arquivo_path
     
     except Exception as e:
+        print(f"❌ ERRO ao converter .bin: {e}")
         return arquivo_path
 
 class AtualizadorDeck:
@@ -319,7 +384,14 @@ class AtualizadorDeck:
         Returns:
             list: Lista de dicts com mudancas para aplicar
         """
+        # FAILSAFE: Converter todos os .bin na pasta (garante 100% de conversão)
+        converter_todos_bins()
+        
         atualizacoes = self.buscar_atualizacoes()
+        
+        # LOG DEBUG: Mostrar quantas atualizações foram encontradas
+        if atualizacoes:
+            print(f"[DEBUG] buscar_atualizacoes() retornou {len(atualizacoes)} atualizações")
         
         # SILENCIADO: Se nao tem atualizacoes, NAO logar nada (evita spam)
         if not atualizacoes:
@@ -362,22 +434,30 @@ class AtualizadorDeck:
             
             # Se for arquivo, fazer download
             arquivo_local_path = os.path.join(DOWNLOADS_DIR, arquivo_para_download)
-            if tipo in ('video', 'imagem') and os.path.exists(arquivo_local_path):
-                # Arquivo ja foi baixado - SUCESSO SILENCIOSO
-                arquivo_local = arquivo_local_path
-            elif tipo in ('video', 'imagem'):
-                # Fazer download do arquivo
-                arquivo_local = self.baixar_arquivo(arquivo_para_download, tipo)
-                if not arquivo_local:
-                    # FALHA SILENCIOSA: Incrementar tentativa e continuar
-                    nova_tentativa = incrementar_tentativa(atualizacao_id) if atualizacao_id else 0
-                    
-                    if nova_tentativa >= 2:
-                        # Atingiu limite - agendar limpeza silenciosamente
-                        self._agendar_limpeza(atualizacao_id, tipo, dados)
-                        deletar_atualizacao(atualizacao_id)
-                    # Pular para proxima atualização (retry na proxima sincronizacao)
-                    continue
+            if tipo in ('video', 'imagem'):
+                # Fazer download do arquivo (ou usar local se ja existe)
+                if os.path.exists(arquivo_local_path):
+                    arquivo_local = arquivo_local_path
+                    print(f"[DEBUG] Arquivo já existe localmente: {arquivo_para_download}")
+                    # IMPORTANTE: Garantir conversão mesmo se arquivo ja existe
+                    if arquivo_local.endswith('.bin'):
+                        print(f"[DEBUG] Tentando converter .bin para formato correto...")
+                        arquivo_local = converter_bin_para_formato_correto(arquivo_local)
+                        print(f"[DEBUG] Resultado após conversão: {os.path.basename(arquivo_local)}")
+                else:
+                    # Download necessário
+                    print(f"[DEBUG] Download necessário: {arquivo_para_download}")
+                    arquivo_local = self.baixar_arquivo(arquivo_para_download, tipo)
+                    if not arquivo_local:
+                        # FALHA SILENCIOSA: Incrementar tentativa e continuar
+                        nova_tentativa = incrementar_tentativa(atualizacao_id) if atualizacao_id else 0
+                        
+                        if nova_tentativa >= 2:
+                            # Atingiu limite - agendar limpeza silenciosamente
+                            self._agendar_limpeza(atualizacao_id, tipo, dados)
+                            deletar_atualizacao(atualizacao_id)
+                        # Pular para proxima atualização (retry na proxima sincronizacao)
+                        continue
             else:
                 arquivo_local = arquivo_para_download
             
