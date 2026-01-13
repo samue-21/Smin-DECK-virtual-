@@ -1,0 +1,54 @@
+#############################
+# Python / Ambiente
+#############################
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+venv/
+env/
+ENV/
+
+*.egg-info/
+
+#############################
+# Segredos (NUNCA versionar)
+#############################
+.env
+*.env
+!.env.example
+
+#############################
+# Artefatos de build/binários
+#############################
+dist/
+build/
+Output/
+
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.zip
+
+bot_installer/*.exe
+
+#############################
+# Logs e arquivos gerados
+#############################
+*.log
+uploads/*.bin
+
+#############################
+# IDE / OS
+#############################
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+.DS_Store
+Thumbs.db

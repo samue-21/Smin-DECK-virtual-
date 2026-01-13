@@ -1,0 +1,137 @@
+================================================================================
+                    ACORDO DE LICENÇA DO USUÁRIO FINAL
+                            SMIN-DECK v1.0.0
+================================================================================
+
+Data: Janeiro de 2026
+Fornecedor: Smin Solutions
+Produto: Smin-DECK - Sistema de Gerenciamento de Mídia para Igrejas
+
+================================================================================
+1. CONCESSÃO DE LICENÇA
+================================================================================
+
+A Smin Solutions concede ao Cliente uma licença não exclusiva, intransferível
+e revogável para usar o Smin-DECK exclusivamente para fins internos, de acordo
+com os termos e condições deste Acordo.
+
+O Cliente tem direito a:
+• Instalar e usar o software em uma (1) estação de trabalho
+• Fazer cópias de backup para fins de recuperação
+• Receber atualizações de manutenção e correções de segurança
+
+================================================================================
+2. RESTRIÇÕES
+================================================================================
+
+O Cliente NÃO tem permissão para:
+• Copiar, modificar ou criar trabalhos derivados do software
+• Distribuir, vender ou disponibilizar o software a terceiros
+• Fazer engenharia reversa, descompilação ou desmontagem
+• Remover avisos de copyright ou propriedade intelectual
+• Usar o software para fins comerciais (exceto conforme permitido)
+• Sublicenciar ou transferir direitos de uso
+
+================================================================================
+3. SUPORTE E MANUTENÇÃO
+================================================================================
+
+Smin Solutions fornecerá:
+• Suporte técnico por email para problemas de funcionalidade
+• Atualizações de segurança e correções críticas
+• Documentação de uso e guias de operação
+
+Não incluído:
+• Personalização ou desenvolvimento customizado
+• Suporte telefônico 24/7
+• Garantia de disponibilidade ininterrupta
+
+================================================================================
+4. PROPRIEDADE INTELECTUAL
+================================================================================
+
+Todo código, design, funcionalidades e documentação do Smin-DECK são
+propriedade exclusiva da Smin Solutions. O Cliente reconhece que possui
+apenas uma licença limitada de uso, não a propriedade do software.
+
+================================================================================
+5. LIMITAÇÃO DE RESPONSABILIDADE
+================================================================================
+
+O SOFTWARE É FORNECIDO "COMO ESTÁ", SEM GARANTIAS DE QUALQUER TIPO,
+EXPRESSAS OU IMPLÍCITAS.
+
+EM NENHUMA CIRCUNSTÂNCIA A SMIN SOLUTIONS SERÁ RESPONSÁVEL POR:
+• Perda de dados ou files
+• Danos indiretos, incidentais ou consequentes
+• Lucros cessantes ou perda de receita
+• Custos de substituição ou recuperação
+
+O Cliente concorda em usar o software por sua conta e risco.
+
+================================================================================
+6. DURAÇÃO E RESCISÃO
+================================================================================
+
+Esta licença é válida por tempo indeterminado, desde que:
+• O Cliente cumpra com todos os termos e condições
+• Pagamentos (se aplicável) estejam em dia
+
+Smin Solutions poderá rescindir esta licença imediatamente se:
+• O Cliente violar qualquer termo deste Acordo
+• O software for usado de forma ilegal ou não autorizada
+• O Cliente transferir o software sem permissão
+
+Após rescisão, o Cliente deve cessar todo uso e destruir as cópias.
+
+================================================================================
+7. ATUALIZAÇÕES E MUDANÇAS
+================================================================================
+
+Smin Solutions poderá:
+• Atualizar ou modificar o software
+• Descontinuar funcionalidades (com aviso prévio)
+• Alterar requisitos de sistema
+• Mudar os termos de licença com 30 dias de aviso
+
+O Cliente deve aceitar as atualizações para manter o suporte ativo.
+
+================================================================================
+8. CONFORMIDADE E AUDITORIA
+================================================================================
+
+O Cliente concorda em permitir que Smin Solutions:
+• Audite o uso do software (máximo 1 vez por ano com aviso prévio)
+• Verifique conformidade com os termos de licença
+• Reporte uso não autorizado se identificado
+
+================================================================================
+9. PRIVACIDADE E DADOS
+================================================================================
+
+Smin-DECK não coleta dados pessoais sem consentimento. Qualquer dado
+coletado para diagnóstico de erros será tratado conforme a Lei Geral de
+Proteção de Dados (LGPD).
+
+O Cliente é responsável por proteger dados sensíveis introduzidos no sistema.
+
+================================================================================
+10. LEI APLICÁVEL
+================================================================================
+
+Este Acordo é regido pelas leis da República Federativa do Brasil.
+Qualquer disputa será resolvida nos tribunais competentes do Brasil.
+
+================================================================================
+11. ACEITAÇÃO
+================================================================================
+
+Ao instalar ou usar o Smin-DECK, o Cliente concorda integralmente com
+este Acordo de Licença. Se não concordar com qualquer termo, o Cliente
+não deve usar o software.
+
+Para suporte ou dúvidas: suporte@smin-deck.com
+
+================================================================================
+© 2026 Smin Solutions. Todos os direitos reservados.
+================================================================================
