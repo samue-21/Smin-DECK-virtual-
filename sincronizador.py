@@ -164,30 +164,12 @@ def extrair_arquivo_compactado_cliente(arquivo_path: str, tipo_esperado: str) ->
 
 def converter_todos_bins():
     """
-    FAILSAFE: Converte TODOS os .bin na pasta de downloads para formatos corretos.
-    Deve ser chamado periodicamente para garantir conversão mesmo que a sincronização falle.
+    REMOVIDO: Conversão agora acontece no VPS quando bot faz upload.
+    O app recebe arquivos com extensão correta (.mp4, .png, etc)
     
-    Returns:
-        Número de arquivos convertidos
+    Esta função é mantida por compatibilidade mas não faz nada.
     """
-    convertidos = 0
-    try:
-        if not os.path.exists(DOWNLOADS_DIR):
-            return 0
-        
-        for arquivo in os.listdir(DOWNLOADS_DIR):
-            if arquivo.endswith('.bin'):
-                caminho = os.path.join(DOWNLOADS_DIR, arquivo)
-                novo_caminho = converter_bin_para_formato_correto(caminho)
-                if novo_caminho != caminho:
-                    convertidos += 1
-        
-        if convertidos > 0:
-            print(f"✅ FAILSAFE: Convertidos {convertidos} arquivos .bin")
-    except Exception as e:
-        print(f"❌ Erro em converter_todos_bins: {e}")
-    
-    return convertidos
+    return 0
 
 
 def converter_bin_para_formato_correto(arquivo_path: str) -> str:
@@ -279,6 +261,13 @@ def converter_bin_para_formato_correto(arquivo_path: str) -> str:
         if new_ext:
             new_path = arquivo_path[:-4] + new_ext  # Remove .bin e adiciona extensão correta
             try:
+                # Se arquivo de destino já existe, deletar o .bin (arquivo duplicado)
+                if os.path.exists(new_path):
+                    os.remove(arquivo_path)
+                    print(f"✅ DUPLICADO REMOVIDO: {Path(arquivo_path).name} (arquivo .{new_ext[1:]} já existe)")
+                    return new_path
+                
+                # Renomear normalmente
                 os.rename(arquivo_path, new_path)
                 print(f"✅ CONVERSÃO: {Path(arquivo_path).name} → {Path(new_path).name} ({tipo_detectado})")
                 return new_path
@@ -329,16 +318,12 @@ class AtualizadorDeck:
                     f.write(resp.content)
                 
                 # Se for compactado, extrair e filtrar por tipo
-                if arquivo_path.lower().endswith(('.zip', '.rar', '.7z', '.bin')) and tipo_esperado:
+                if arquivo_path.lower().endswith(('.zip', '.rar', '.7z')) and tipo_esperado:
                     arquivo_extraido = extrair_arquivo_compactado_cliente(arquivo_path, tipo_esperado)
                     if arquivo_extraido:
                         arquivo_path = arquivo_extraido
                     else:
                         return None
-                
-                # Se for .bin (que nao era arquivo compactado), converter para formato correto
-                elif arquivo_path.endswith('.bin'):
-                    arquivo_path = converter_bin_para_formato_correto(arquivo_path)
                 
                 # IMPORTANTE: Deletar arquivo do VPS após download bem-sucedido
                 self.deletar_arquivo_vps(filename)
@@ -384,9 +369,6 @@ class AtualizadorDeck:
         Returns:
             list: Lista de dicts com mudancas para aplicar
         """
-        # FAILSAFE: Converter todos os .bin na pasta (garante 100% de conversão)
-        converter_todos_bins()
-        
         atualizacoes = self.buscar_atualizacoes()
         
         # LOG DEBUG: Mostrar quantas atualizações foram encontradas
@@ -438,15 +420,9 @@ class AtualizadorDeck:
                 # Fazer download do arquivo (ou usar local se ja existe)
                 if os.path.exists(arquivo_local_path):
                     arquivo_local = arquivo_local_path
-                    print(f"[DEBUG] Arquivo já existe localmente: {arquivo_para_download}")
-                    # IMPORTANTE: Garantir conversão mesmo se arquivo ja existe
-                    if arquivo_local.endswith('.bin'):
-                        print(f"[DEBUG] Tentando converter .bin para formato correto...")
-                        arquivo_local = converter_bin_para_formato_correto(arquivo_local)
-                        print(f"[DEBUG] Resultado após conversão: {os.path.basename(arquivo_local)}")
+                    # Arquivo já existe com extensão correta (vem do VPS processado)
                 else:
                     # Download necessário
-                    print(f"[DEBUG] Download necessário: {arquivo_para_download}")
                     arquivo_local = self.baixar_arquivo(arquivo_para_download, tipo)
                     if not arquivo_local:
                         # FALHA SILENCIOSA: Incrementar tentativa e continuar

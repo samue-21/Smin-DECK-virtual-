@@ -121,6 +121,11 @@ def processar_arquivo(arquivo_path: str, tipo: str, botao: int) -> str:
     """
     Processa arquivo genérico
     
+    Fluxo especial para .bin do Google Drive:
+    1. Detecta tipo real usando magic bytes
+    2. Renomeia para extensão correta (.mp4, .png, etc)
+    3. Processa o arquivo (reduz video, comprime imagem, etc)
+    
     Args:
         arquivo_path: Caminho do arquivo enviado
         tipo: 'video', 'imagem'
@@ -134,23 +139,48 @@ def processar_arquivo(arquivo_path: str, tipo: str, botao: int) -> str:
         log.error(f"❌ Arquivo não encontrado: {arquivo_path}")
         return None
     
-    # Se for .bin, detectar tipo real e renomear
+    # Se for .bin, detectar tipo real e renomear PRIMEIRO
     if arquivo_path.endswith('.bin'):
-        log.info(f"📁 Arquivo .bin detectado, detectando tipo real...")
+        log.info(f"🔍 Arquivo .bin detectado (provavelmente do Google Drive)")
         extensao_real = _detect_bin_extension(arquivo_path)
         log.info(f"✅ Tipo detectado: {extensao_real}")
         
+        if extensao_real == '.bin':
+            # Não conseguiu detectar - salvar como bin mesmo
+            log.warning(f"⚠️ Tipo não identificado, mantendo .bin")
+            output_filename = f"{tipo}_botao_{botao}.bin"
+            output_path = os.path.join(UPLOADS_DIR, output_filename)
+            try:
+                shutil.copy(arquivo_path, output_path)
+                log.info(f"✅ Arquivo copiado como: {output_filename}")
+                return output_path
+            except Exception as e:
+                log.error(f"❌ Erro ao copiar .bin: {e}")
+                return None
+        
+        # Conseguiu detectar tipo real - renomear e processar
         output_filename = f"{tipo}_botao_{botao}{extensao_real}"
         output_path = os.path.join(UPLOADS_DIR, output_filename)
+        
         try:
+            # Copiar com extensão correta
             shutil.copy(arquivo_path, output_path)
             log.info(f"✅ Arquivo .bin renomeado para: {output_filename}")
-            return output_path
+            
+            # Agora processar o arquivo renomeado (reduzir video, comprimir imagem, etc)
+            if tipo == 'video' and extensao_real.lower() in ['.mp4', '.mkv', '.webm', '.avi', '.mov']:
+                return processar_video(output_path, output_filename)
+            elif tipo == 'imagem' and extensao_real.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+                return processar_imagem(output_path, output_filename)
+            else:
+                # Não precisa processar (já está com extensão correta)
+                return output_path
+                
         except Exception as e:
             log.error(f"❌ Erro ao processar .bin: {e}")
             return None
     
-    # Gerar nome de saída
+    # Gerar nome de saída para arquivos que não são .bin
     extensao_map = {
         'video': 'mp4',
         'imagem': 'jpg'
@@ -174,49 +204,108 @@ def processar_arquivo(arquivo_path: str, tipo: str, botao: int) -> str:
 def _detect_bin_extension(file_path: str) -> str:
     """
     Detecta a extensão real de um arquivo .bin usando magic bytes
+    Essencial para arquivos do Google Drive que vêm como .bin
+    
+    Returns:
+        Extensão com ponto (ex: .mp4) ou .bin como fallback
     """
     try:
         with open(file_path, 'rb') as f:
             magic_bytes = f.read(32)
         
-        # Vídeo MP4
-        if magic_bytes[4:8] == b'ftyp':
-            return '.mp4'
-        # Vídeo MKV
+        # ZIP / Arquivo compactado (Google Drive, etc)
+        if magic_bytes[0:4] == b'PK\x03\x04':
+            log.info(f"✅ Detectado: ZIP")
+            return '.zip'
+        # Vídeo MP4 / M4A / MOV (ftyp é a signature)
+        elif magic_bytes[4:8] == b'ftyp':
+            # Verificar se é MP4, M4A ou outro formato ftyp
+            if b'm4a' in magic_bytes[:20]:
+                log.info(f"✅ Detectado: M4A (áudio)")
+                return '.m4a'
+            elif b'qt  ' in magic_bytes[:20]:  # QuickTime/MOV
+                log.info(f"✅ Detectado: MOV (vídeo)")
+                return '.mov'
+            else:
+                log.info(f"✅ Detectado: MP4 (vídeo)")
+                return '.mp4'
+        # Vídeo MKV (Matroska)
         elif magic_bytes[0:4] == b'\x1A\x45\xDF\xA3':
+            log.info(f"✅ Detectado: MKV (vídeo)")
             return '.mkv'
-        # Vídeo WebM
-        elif magic_bytes[0:4] == b'\x1A\x45\xDF\xA3':
-            return '.webm'
+        # Vídeo WebM / WebP / WAV (RIFF)
+        elif magic_bytes[0:4] == b'RIFF':
+            if magic_bytes[8:12] == b'WEBM':
+                log.info(f"✅ Detectado: WebM (vídeo)")
+                return '.webm'
+            elif magic_bytes[8:12] == b'WEBP':
+                log.info(f"✅ Detectado: WebP (imagem)")
+                return '.webp'
+            elif magic_bytes[8:12] == b'WAVE':
+                log.info(f"✅ Detectado: WAV (áudio)")
+                return '.wav'
+            elif magic_bytes[8:12] == b'AVI ':
+                log.info(f"✅ Detectado: AVI (vídeo)")
+                return '.avi'
         # PNG
         elif magic_bytes[0:8] == b'\x89PNG\r\n\x1a\n':
+            log.info(f"✅ Detectado: PNG (imagem)")
             return '.png'
         # JPEG
         elif magic_bytes[0:3] == b'\xFF\xD8\xFF':
+            log.info(f"✅ Detectado: JPEG (imagem)")
             return '.jpg'
         # GIF
         elif magic_bytes[0:6] in (b'GIF87a', b'GIF89a'):
+            log.info(f"✅ Detectado: GIF (imagem)")
             return '.gif'
-        # BMP
+        # BMP (Windows Bitmap)
         elif magic_bytes[0:2] == b'BM':
+            log.info(f"✅ Detectado: BMP (imagem)")
             return '.bmp'
-        # WebP
-        elif magic_bytes[0:4] == b'RIFF' and magic_bytes[8:12] == b'WEBP':
-            return '.webp'
-        # MP3
-        elif magic_bytes[0:3] == b'ID3' or magic_bytes[0:2] == b'\xFF\xFB':
+        # MP3 (ID3 tag ou MPEG frame sync)
+        elif magic_bytes[0:3] == b'ID3':
+            log.info(f"✅ Detectado: MP3 (áudio com ID3)")
             return '.mp3'
-        # WAV
-        elif magic_bytes[0:4] == b'RIFF' and magic_bytes[8:12] == b'WAVE':
-            return '.wav'
-        # OGG
+        elif magic_bytes[0:2] == b'\xFF\xFB' or magic_bytes[0:2] == b'\xFF\xFA':
+            log.info(f"✅ Detectado: MP3 (áudio MPEG frame)")
+            return '.mp3'
+        # OGG (Ogg Vorbis, Opus, etc)
         elif magic_bytes[0:4] == b'OggS':
+            log.info(f"✅ Detectado: OGG (áudio)")
             return '.ogg'
-    except:
-        pass
+        # FLAC (Free Lossless Audio Codec)
+        elif magic_bytes[0:4] == b'fLaC':
+            log.info(f"✅ Detectado: FLAC (áudio)")
+            return '.flac'
+        # AAC (Advanced Audio Codec)
+        elif magic_bytes[0:2] == b'\xFF\xF1' or magic_bytes[0:2] == b'\xFF\xF9':
+            log.info(f"✅ Detectado: AAC (áudio)")
+            return '.aac'
+        # PDF
+        elif magic_bytes[0:4] == b'%PDF':
+            log.info(f"✅ Detectado: PDF (documento)")
+            return '.pdf'
+        # AVIF (modern image format)
+        elif b'ftyp' in magic_bytes[:12] and b'avif' in magic_bytes[:20]:
+            log.info(f"✅ Detectado: AVIF (imagem)")
+            return '.avif'
+        # TIFF
+        elif magic_bytes[0:4] == b'II\x2A\x00' or magic_bytes[0:4] == b'MM\x00\x2A':
+            log.info(f"✅ Detectado: TIFF (imagem)")
+            return '.tiff'
+        # SVG (XML-based, pode começar com < ou BOM)
+        elif magic_bytes[0:4] == b'<?xm' or magic_bytes[0:6] == b'<svg':
+            log.info(f"✅ Detectado: SVG (imagem)")
+            return '.svg'
+    except Exception as e:
+        log.warning(f"⚠️ Erro ao detectar tipo de arquivo: {e}")
     
-    # Fallback: manter .bin se não conseguir detectar
+    # Fallback: Se não conseguiu detectar, manter .bin
+    log.warning(f"⚠️ Tipo desconhecido para {file_path}, mantendo .bin")
     return '.bin'
+
+
 
 
 def limpar_arquivo(filename: str) -> bool:
