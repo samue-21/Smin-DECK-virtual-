@@ -317,6 +317,17 @@ class AtualizadorDeck:
                 with open(arquivo_path, 'wb') as f:
                     f.write(resp.content)
                 
+                # DEBUG: Salvar cópia na pasta raiz do projeto para análise
+                try:
+                    debug_dir = os.path.join(os.path.dirname(__file__), 'debug_downloads')
+                    os.makedirs(debug_dir, exist_ok=True)
+                    debug_path = os.path.join(debug_dir, filename)
+                    import shutil
+                    shutil.copy2(arquivo_path, debug_path)
+                    print(f"[DEBUG] Arquivo copiado para análise: {debug_path}")
+                except Exception as e:
+                    print(f"[DEBUG] Erro ao copiar para debug: {e}")
+                
                 # Se for compactado, extrair e filtrar por tipo
                 if arquivo_path.lower().endswith(('.zip', '.rar', '.7z')) and tipo_esperado:
                     arquivo_extraido = extrair_arquivo_compactado_cliente(arquivo_path, tipo_esperado)
