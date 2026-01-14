@@ -380,12 +380,29 @@ async def continuar_processamento_url(arquivo_path, opcao, botao, user_id, nome_
         pass
     
     if not arquivo_processado:
-        await msg.edit(embed=discord.Embed(
-            title="❌ ERRO",
-            description="Erro ao processar arquivo",
-            color=discord.Color.red()
-        ))
-        return
+        # DEBUG: Se processar_arquivo falhou, tenta copiar arquivo bruto como fallback
+        print(f"⚠️ Erro ao processar arquivo, tentando fallback...")
+        tipo_padrao = {'video': 'video', 'imagem': 'imagem', 'link': 'link'}
+        prefixo = tipo_padrao.get(opcao, 'arquivo')
+        
+        # Detectar extensão
+        ext = os.path.splitext(arquivo_path)[1].lower() or '.bin'
+        nome_fallback = f"{prefixo}_botao_{botao}{ext}"
+        path_fallback = os.path.join('/opt/smindeck-bot/uploads' if os.name != 'nt' else 'uploads', nome_fallback)
+        
+        try:
+            import shutil
+            shutil.copy(arquivo_path, path_fallback)
+            arquivo_processado = path_fallback
+            print(f"✅ Fallback: arquivo copiado como {nome_fallback}")
+        except Exception as e:
+            print(f"❌ Fallback também falhou: {e}")
+            await msg.edit(embed=discord.Embed(
+                title="❌ ERRO",
+                description="Erro ao processar arquivo",
+                color=discord.Color.red()
+            ))
+            return
     
     # Registrar no banco
     chaves = listar_chaves_ativas()
