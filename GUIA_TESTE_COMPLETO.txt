@@ -1,0 +1,305 @@
+═══════════════════════════════════════════════════════════════════════════════
+                      GUIA: TESTE COMPLETO END-TO-END
+═══════════════════════════════════════════════════════════════════════════════
+
+OBJETIVO:
+Testar o fluxo COMPLETO de envio de arquivo:
+  1. Arquivo sobe para banco de dados
+  2. Verificar dados completos no banco
+  3. Sincronizador baixa arquivo
+  4. Arquivo em formato correto
+
+═══════════════════════════════════════════════════════════════════════════════
+PASSO 0: PREPARAÇÃO
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Abra 3 TERMINAIS (PowerShell)
+
+   Terminal 1 (TESTE):
+   Vai rodar o teste completo
+
+   Terminal 2 (MONITOR):
+   Vai monitorar o que está acontecendo em tempo real
+
+   Terminal 3 (BOT):
+   Vai manter o bot rodando
+
+
+2. Abra o Discord no navegador ou app
+   Ter pronto um arquivo para enviar (vídeo, imagem, etc)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PASSO 1: INICIAR O BOT
+═══════════════════════════════════════════════════════════════════════════════
+
+Terminal 3 (BOT):
+
+  cd "C:\Users\SAMUEL\Desktop\Smin-DECK virtual"
+  python bot.py
+
+  Espere até ver:
+  [INFO] Bot conectado!
+  [INFO] Aguardando comandos...
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PASSO 2: INICIAR MONITOR DE DEBUG
+═══════════════════════════════════════════════════════════════════════════════
+
+Terminal 2 (MONITOR):
+
+  cd "C:\Users\SAMUEL\Desktop\Smin-DECK virtual"
+  python monitor_debug.py
+
+  Agora vai mostrar em tempo real:
+  - Banco de dados (quantas atualizacoes)
+  - Pasta de downloads (quais arquivos)
+  - Logs do sistema
+
+  A tela atualizará a cada 3 segundos
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PASSO 3: INICIAR TESTE COMPLETO
+═══════════════════════════════════════════════════════════════════════════════
+
+Terminal 1 (TESTE):
+
+  cd "C:\Users\SAMUEL\Desktop\Smin-DECK virtual"
+  python teste_completo_end_to_end.py
+
+  Vai aparecer:
+  ╔═══════════════════════════════════════════════════════════════════╗
+  ║         TESTE COMPLETO - SISTEMA DE ARQUIVOS END-TO-END         ║
+  ╚═══════════════════════════════════════════════════════════════════╝
+
+  [PASSO 1] AGUARDAR UPLOAD DE ARQUIVO
+
+  Aguardando...
+  Enviando arquivo de teste via Discord bot...
+  Aguardando por 120 segundos...
+
+  [AGUARDANDO] 0s...
+  [AGUARDANDO] 1s...
+  [AGUARDANDO] 2s...
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PASSO 4: ENVIAR ARQUIVO PELO DISCORD
+═══════════════════════════════════════════════════════════════════════════════
+
+No Discord:
+
+1. Entre no servidor com o bot
+2. Digite: oi
+
+   Bot vai responder com menu de opcoes
+
+3. Escolha tipo de arquivo:
+   - video
+   - imagem
+   - link
+
+4. Escolha número de botão (0-4)
+
+5. Envie o arquivo
+
+   Pode ser:
+   - Attachment direto (arraste arquivo)
+   - URL (colar link)
+   - Arquivo .zip com vários itens
+
+6. Digite o nome personalizado que quer
+
+7. Pronto! Arquivo enviado
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PASSO 5: ACOMPANHAR O FLUXO
+═══════════════════════════════════════════════════════════════════════════════
+
+Terminal 1 (TESTE):
+  [OK] Nova atualizacao detectada!
+
+  [PASSO 2] VERIFICAR DADOS NO BANCO DE DADOS
+  ==================================================
+  [INFO] Dados brutos no banco:
+    ID: 42
+    Chave: 8MC34SHJ...
+    Tipo: video
+    Botao: 0
+    Data: 2026-01-13 21:40:15
+
+    [Dados estruturados:]
+      ✓ arquivo: video_botao_0.mp4
+      ✓ nome: Meu Video Teste
+
+    [OK] Todos os campos esperados presentes no banco!
+
+Terminal 2 (MONITOR):
+  [BANCO DE DADOS]
+  ==================================================
+  [TOTAL] 1 atualizacoes no banco
+  [#1] ID: 42 | Data: 2026-01-13 21:40:15
+       Tipo: video | Botao: 0
+       [OK] Arquivo: video_botao_0.mp4
+       [OK] Nome: Meu Video Teste
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PASSO 6: VALIDAR RESULTADO
+═══════════════════════════════════════════════════════════════════════════════
+
+Terminal 1 (TESTE - vai mostrar):
+
+  [PASSO 3] TESTAR SINCRONIZADOR - BAIXAR ARQUIVO
+  ==================================================
+  [INFO] Executando sincronizador...
+  [OK] Sincronizador executado!
+  
+  [INFO] Arquivos antes: 0
+  [INFO] Arquivos depois: 1
+  [OK] Arquivo(s) baixado(s)!
+    ✓ video_botao_0.mp4 (45.32MB)
+
+  [PASSO 4] VERIFICAR CONVERSAO DO ARQUIVO
+  ==================================================
+  [INFO] Analisando arquivo(s)...
+
+    Arquivo: video_botao_0.mp4
+    Extensao: .mp4
+    Tamanho: 45.32MB
+    Tipo detectado: MP4 (video)
+    [OK] Arquivo em formato correto: .mp4
+
+  [PASSO 5] RESUMO FINAL
+  ==================================================
+  [PASS] Arquivo sobe para banco
+  [PASS] Dados no banco corretos
+  [PASS] Sincronizador baixa arquivo
+  [PASS] Arquivo em formato correto
+
+  Total: 4/4 testes
+
+  [SUCCESS] FLUXO COMPLETO FUNCIONANDO!
+  Arquivo subiu -> Banco registrou -> App baixou -> Formato correto
+
+
+═══════════════════════════════════════════════════════════════════════════════
+O QUE SIGNIFICAM OS RESULTADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Se ver "[SUCCESS] FLUXO COMPLETO FUNCIONANDO!"
+   → PROBLEMA RESOLVIDO! Sistema funcionando perfeitamente
+   → Faça git commit e push para o repositório
+
+❌ Se algum teste falhar:
+
+   [FAIL] Arquivo sobe para banco
+   → Verifique se bot está rodando e conectado ao Discord
+   → Verifique logs do bot em Terminal 3
+
+   [FAIL] Dados no banco corretos
+   → Verifique se arquivo foi registrado com keys corretas
+   → Monitore Terminal 2 para ver dados no banco
+
+   [FAIL] Sincronizador baixa arquivo
+   → Verifique se sincronizador.py consegue ler o banco
+   → Verifique permissões da pasta ~/.smindeckbot/
+
+   [FAIL] Arquivo em formato correto
+   → Verifique se _detect_bin_extension() está funcionando
+   → Rode: python -c "from arquivo_processor import _detect_bin_extension; print(_detect_bin_extension('caminho_arquivo'))"
+
+
+═══════════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+Problema: "Timeout! Nenhum arquivo foi enviado."
+Solução: Verifique se:
+  1. Bot está realmente rodando (Terminal 3)
+  2. Você está no servidor correto no Discord
+  3. Bot tem permissão de ler mensagens
+  4. Você esperou bot responder antes de enviar arquivo
+
+Problema: "[ERRO] Arquivo ainda em formato .bin!"
+Solução:
+  1. Verifique _detect_bin_extension() em arquivo_processor.py
+  2. Rode: python validar_correcao.py
+  3. Teste magic bytes manualmente com arquivo problemático
+
+Problema: "Sincronizador não conseguiu baixar"
+Solução:
+  1. Verifique se pasta ~/.smindeckbot/downloads/ existe
+  2. Verifique permissões: ls -la ~/.smindeckbot/
+  3. Verifique logs do sincronizador
+
+Problema: Teste parado em determinado passo
+Solução:
+  1. Ctrl+C para parar
+  2. Rode novamente com mais informações: PYTHON_DEBUG=1 python teste_completo_end_to_end.py
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ARQUIVOS CRIADOS PARA ESTE TESTE
+═══════════════════════════════════════════════════════════════════════════════
+
+1. teste_completo_end_to_end.py
+   - Teste principal que verifica fluxo completo
+   - Roda em 4 passos automaticamente
+   - Mostra resultado final
+
+2. monitor_debug.py
+   - Monitor em tempo real do sistema
+   - Mostra banco, downloads, logs
+   - Atualiza a cada 3 segundos
+
+3. GUIA_TESTE_COMPLETO.txt
+   - Este arquivo
+   - Instruções passo-a-passo
+
+4. test_latest_update.py
+   - Script auxiliar para ver últimas atualizações
+   - Use se quiser verificar dados antes de rodar teste completo
+
+5. validar_correcao.py
+   - Valida componentes individuais
+   - Use para debug se teste falhar
+
+
+═══════════════════════════════════════════════════════════════════════════════
+COMO AUTOMATIZAR O TESTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Se quiser rodar teste automaticamente em Windows:
+
+1. Crie arquivo: teste_automatico.bat
+
+  @echo off
+  cd /d "C:\Users\SAMUEL\Desktop\Smin-DECK virtual"
+  
+  echo [1] Iniciando Bot...
+  start "BOT" cmd /k python bot.py
+  
+  timeout /t 3 /nobreak
+  
+  echo [2] Iniciando Monitor...
+  start "MONITOR" cmd /k python monitor_debug.py
+  
+  timeout /t 2 /nobreak
+  
+  echo [3] Iniciando Teste...
+  start "TESTE" cmd /k python teste_completo_end_to_end.py
+
+2. Execute: teste_automatico.bat
+
+   Vai abrir 3 janelas automaticamente e começar o teste
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Qualquer dúvida, rode: python teste_completo_end_to_end.py --help
+
+═══════════════════════════════════════════════════════════════════════════════

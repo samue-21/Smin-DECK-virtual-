@@ -1330,12 +1330,12 @@ class DeckWindow(QWidget):
         self.bg_btn.setObjectName("bgBtn")
         self.bg_btn.clicked.connect(self.open_background_window)
 
-        # 🤖 Bot Discord
-        self.bot_btn = QPushButton("🤖 BOT")
-        self.bot_btn.setObjectName("botBtn")
-        self.bot_btn.clicked.connect(self.manage_bot_keys)
+        # 🤖 Bot Discord - DESABILITADO (usar apenas arquivos nativos)
+        # self.bot_btn = QPushButton("🤖 BOT")
+        # self.bot_btn.setObjectName("botBtn")
+        # self.bot_btn.clicked.connect(self.manage_bot_keys)
 
-        for b in (self.pause_btn, self.last_btn, self.close_btn, self.bg_btn, self.bot_btn):
+        for b in (self.pause_btn, self.last_btn, self.close_btn, self.bg_btn):
             b.setFixedSize(140, 40)
             bottom_bar.addWidget(b)
 
@@ -1853,6 +1853,66 @@ class DeckWindow(QWidget):
             # Se não há chave, mostrar o botão
             self.bot_btn.show()
 
+    def _converter_arquivo_se_necessario(self, file_path):
+        """
+        CONVERSAO AUTOMATICA: Se arquivo é .bin, detecta tipo real e converte
+        
+        Retorna:
+            Caminho do arquivo convertido (ou original se não precisa converter)
+            None se houver erro na conversão
+        """
+        import os
+        import shutil
+        
+        if not file_path or not os.path.exists(file_path):
+            print(f"[ERRO] Arquivo nao existe: {file_path}")
+            return None
+        
+        ext_atual = os.path.splitext(file_path)[1].lower()
+        
+        # Se nao é .bin, ja pode usar normalmente
+        if ext_atual != '.bin':
+            print(f"[INFO] Arquivo ja em formato: {ext_atual}")
+            return file_path
+        
+        # É .bin - precisa converter!
+        print(f"[CONV] Arquivo é .bin - detectando tipo real...")
+        
+        try:
+            from arquivo_processor import _detect_bin_extension
+            
+            # Detectar tipo real
+            ext_real = _detect_bin_extension(file_path)
+            
+            if ext_real == '.bin':
+                # Nao conseguiu detectar - manter como .bin mesmo
+                print(f"[AVISO] Nao conseguiu detectar tipo real, mantendo como .bin")
+                return file_path
+            
+            # Conseguiu detectar - renomear arquivo
+            dir_path = os.path.dirname(file_path)
+            nome_base = os.path.splitext(os.path.basename(file_path))[0]
+            arquivo_convertido = os.path.join(dir_path, nome_base + ext_real)
+            
+            # Se arquivo convertido ja existe, usar
+            if os.path.exists(arquivo_convertido):
+                print(f"[OK] Arquivo ja existe em formato correto: {arquivo_convertido}")
+                return arquivo_convertido
+            
+            # Copiar arquivo com nova extensao
+            shutil.copy2(file_path, arquivo_convertido)
+            print(f"[OK] Arquivo convertido: {file_path} -> {arquivo_convertido}")
+            
+            return arquivo_convertido
+            
+        except Exception as e:
+            print(f"[ERRO] Erro ao converter arquivo: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Se falhar conversao, tentar usar arquivo original como .bin
+            return file_path
+
     def on_button_clicked(self, index):
         file_path = self.button_files.get(index)
 
@@ -1861,6 +1921,14 @@ class DeckWindow(QWidget):
             return
 
         if not file_path:
+            return
+        
+        # ========== CONVERSAO AUTOMATICA DE ARQUIVO ==========
+        # Se arquivo é .bin, detecta tipo real e converte
+        file_path = self._converter_arquivo_se_necessario(file_path)
+        
+        if not file_path:
+            print(f"[ERRO] Nao conseguiu converter arquivo!")
             return
 
         cfg = self.button_config[index]

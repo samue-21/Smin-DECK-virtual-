@@ -75,31 +75,90 @@ def init_database():
         conn.close()
 
 def criar_chave(user_id, guild_id, channel_id):
-    """Cria nova chave no banco e AUTENTICA automaticamente"""
+    """Cria nova chave no banco e AUTENTICA automaticamente
+    
+    IMPORTANTE: Se o usuário já tem uma chave ativa, retorna a existente
+    (não cria duplicatas)
+    """
     import random
     import string
     import logging
     
     log = logging.getLogger(__name__)
     
-    chave = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-    expira_em = datetime.now() + timedelta(minutes=5)
-    
-    print(f"[CRIANDO] Criando chave: {chave}")
-    print(f"[BD] DB_PATH: {DB_PATH}")
-    log.info(f"[CRIANDO] Criando chave: {chave} | DB: {DB_PATH}")
-    
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     try:
-        # [1] Inserir na tabela chaves
+        # [0] VERIFICAR SE JÁ EXISTE CHAVE ATIVA
+        print(f"[VERIFICANDO] Procurando chave ativa para user_id={user_id}")
+        cursor.execute('''
+            SELECT chave FROM chaves_ativas WHERE user_id = ?
+        ''', (user_id,))
+        
+        resultado = cursor.fetchone()
+        if resultado:
+            chave_existente = resultado[0]
+            print(f"[REUTILIZANDO] Chave já ativa encontrada: {chave_existente}")
+            log.info(f"[REUTILIZANDO] Chave já ativa para user {user_id}: {chave_existente}")
+            conn.close()
+            return chave_existente
+        
+        # [1] Se não tem chave ativa, procurar em chaves (talvez expirada)
+        print(f"[CHECANDO] Procurando chave anterior (expirada?) para user_id={user_id}")
+        cursor.execute('''
+            SELECT chave, expira_em FROM chaves 
+            WHERE user_id = ? 
+            ORDER BY criada_em DESC 
+            LIMIT 1
+        ''', (user_id,))
+        
+        resultado_anterior = cursor.fetchone()
+        
+        # Se achou chave anterior, reativar (mesmo que expirada)
+        if resultado_anterior:
+            chave_anterior = resultado_anterior[0]
+            print(f"[REATIVANDO] Encontrada chave anterior: {chave_anterior}")
+            log.info(f"[REATIVANDO] Chave anterior encontrada para user {user_id}: {chave_anterior}")
+            
+            # [1.5] Deletar entrada antiga em chaves_ativas (se houver)
+            cursor.execute('DELETE FROM chaves_ativas WHERE chave = ?', (chave_anterior,))
+            
+            # [2] Reativar em chaves_ativas
+            cursor.execute('''
+                INSERT INTO chaves_ativas (chave, user_id, guild_id, channel_id, autenticada_em)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (chave_anterior, user_id, guild_id, channel_id, datetime.now().isoformat()))
+            
+            # [3] Atualizar a chave com novo timestamp de expiração
+            novo_expira_em = (datetime.now() + timedelta(minutes=5)).isoformat()
+            cursor.execute('''
+                UPDATE chaves 
+                SET expira_em = ?, status = 'ativa'
+                WHERE chave = ?
+            ''', (novo_expira_em, chave_anterior))
+            
+            conn.commit()
+            print(f"[OK] Chave reativada: {chave_anterior}")
+            log.info(f"[OK] Chave reativada e autenticada: {chave_anterior}")
+            return chave_anterior
+        
+        # [4] Se REALMENTE não tem nenhuma chave, criar nova
+        print(f"[CRIANDO] Nenhuma chave anterior encontrada. Criando nova...")
+        chave = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        expira_em = datetime.now() + timedelta(minutes=5)
+        
+        print(f"[CRIANDO] Criando chave: {chave}")
+        print(f"[BD] DB_PATH: {DB_PATH}")
+        log.info(f"[CRIANDO] Criando chave: {chave} | DB: {DB_PATH}")
+        
+        # [5] Inserir na tabela chaves
         cursor.execute('''
             INSERT INTO chaves (chave, user_id, guild_id, channel_id, expira_em, status)
             VALUES (?, ?, ?, ?, ?, 'ativa')
         ''', (chave, user_id, guild_id, channel_id, expira_em.isoformat()))
         
-        # [2] Automaticamente autenticar (inserir em chaves_ativas)
+        # [6] Automaticamente autenticar (inserir em chaves_ativas)
         cursor.execute('''
             INSERT INTO chaves_ativas (chave, user_id, guild_id, channel_id, autenticada_em)
             VALUES (?, ?, ?, ?, ?)
@@ -109,6 +168,7 @@ def criar_chave(user_id, guild_id, channel_id):
         print(f"[OK] Chave criada E autenticada: {chave}")
         log.info(f"[OK] Chave criada E autenticada: {chave}")
         return chave
+        
     except Exception as e:
         print(f"[ERRO] Erro ao criar chave: {e}")
         log.error(f"[ERRO] Erro ao criar chave: {e}")
@@ -212,11 +272,18 @@ def registrar_atualizacao(chave, tipo, botao, dados):
     Regra de deduplicação: Se o mesmo botão/tipo já foi atualizado, 
     remove o arquivo antigo e apenas atualiza o nome no BD
     """
+    print(f"\n[BANCO] Iniciando registrar_atualizacao()...")
+    print(f"[BANCO] Chave: {chave[:20]}...")
+    print(f"[BANCO] Tipo: {tipo}")
+    print(f"[BANCO] Botão: {botao}")
+    print(f"[BANCO] Dados: {dados}")
+    
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     try:
         # [1] VERIFICAR SE JÁ EXISTE ATUALIZAÇÃO ANTERIOR DO MESMO BOTÃO/TIPO
+        print(f"[BANCO] [1] Verificando se existe atualização anterior...")
         cursor.execute('''
             SELECT id, dados FROM atualizacoes 
             WHERE chave = ? AND tipo = ? AND botao = ?
@@ -225,11 +292,13 @@ def registrar_atualizacao(chave, tipo, botao, dados):
         ''', (chave, tipo, botao))
         
         resultado_anterior = cursor.fetchone()
+        print(f"[BANCO] [2] Resultado anterior: {resultado_anterior is not None}")
         
         if resultado_anterior:
             # Há uma atualização anterior do mesmo botão
             id_anterior, dados_anterior_json = resultado_anterior
             dados_anterior = json.loads(dados_anterior_json)
+            print(f"[BANCO] [3] Removendo atualização anterior (ID: {id_anterior})...")
             
             # Se é arquivo (tem 'arquivo' ou 'conteudo'), remover o arquivo antigo
             if tipo in ['video', 'imagem', 'audio'] and 'arquivo' in dados_anterior:
@@ -249,26 +318,32 @@ def registrar_atualizacao(chave, tipo, botao, dados):
             
             # [2] DELETAR A ATUALIZAÇÃO ANTERIOR
             cursor.execute('DELETE FROM atualizacoes WHERE id = ?', (id_anterior,))
-            print(f"[CONVERSAO] Atualização anterior removida (ID: {id_anterior})")
+            print(f"[BANCO] [4] Atualização anterior deletada (ID: {id_anterior})")
         
-        # [3] INSERIR A NOVA ATUALIZAÇÃO (apenas com alteração de nome, não arquivo duplicado)
+        # [3] INSERIR A NOVA ATUALIZAÇÃO
+        print(f"[BANCO] [5] Inserindo nova atualização...")
         cursor.execute('''
             INSERT INTO atualizacoes (chave, tipo, botao, dados)
             VALUES (?, ?, ?, ?)
         ''', (chave, tipo, botao, json.dumps(dados)))
         
+        print(f"[BANCO] [6] Atualizando timestamp de sincronização...")
         # Atualizar timestamp de última sincronização
         cursor.execute(
             'UPDATE chaves_ativas SET ultima_sincronizacao = CURRENT_TIMESTAMP WHERE chave = ?',
             (chave,)
         )
         
+        print(f"[BANCO] [7] Fazendo commit...")
         conn.commit()
-        print(f"[OK] Atualização registrada: Botão {botao} | Tipo: {tipo}")
+        print(f"[BANCO] ✅ OK! Atualização registrada: Botão {botao} | Tipo: {tipo}")
     except Exception as e:
-        print(f"[ERRO] Erro ao registrar atualização: {e}")
+        print(f"[BANCO] ❌ ERRO ao registrar: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         conn.close()
+        print(f"[BANCO] Conexão fechada\n")
 
 def obter_atualizacoes(desde=None):
     """Obtém atualizações desde um timestamp"""

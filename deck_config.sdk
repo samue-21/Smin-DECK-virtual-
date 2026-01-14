@@ -94,7 +94,7 @@
         "nome_botao": null
     },
     "7": {
-        "file": "C:\\Users\\SAMUEL/.smindeckbot/downloads\\video_botao_7.bin",
+        "file": null,
         "fade_enabled": true,
         "fade_in": 800,
         "fade_out": 600,
@@ -103,7 +103,7 @@
         ],
         "icon_path": null,
         "is_youtube": false,
-        "nome_botao": "provai e vede"
+        "nome_botao": null
     },
     "8": {
         "file": null,

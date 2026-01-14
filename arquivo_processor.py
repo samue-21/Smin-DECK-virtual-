@@ -17,10 +17,13 @@ log = logging.getLogger(__name__)
 
 UPLOADS_DIR = "/opt/smindeck-bot/uploads"
 if os.name == 'nt':
-    UPLOADS_DIR = "uploads"
+    UPLOADS_DIR = os.path.join(os.getcwd(), "uploads")
 
-# Garantir que a pasta existe
+# Garantir que a pasta existe - criar com caminho absoluto
 os.makedirs(UPLOADS_DIR, exist_ok=True)
+print(f"[ARQUIVO_PROCESSOR] UPLOADS_DIR: {UPLOADS_DIR}")
+print(f"[ARQUIVO_PROCESSOR] Diretório existe: {os.path.exists(UPLOADS_DIR)}")
+print(f"[ARQUIVO_PROCESSOR] CWD: {os.getcwd()}")
 
 
 def processar_video(arquivo_path: str, output_filename: str) -> str:
@@ -31,7 +34,7 @@ def processar_video(arquivo_path: str, output_filename: str) -> str:
     - Codec: libx264
     
     Args:
-        arquivo_path: Caminho do arquivo original
+        arquivo_path: Caminho do arquivo original (input)
         output_filename: Nome para salvar (ex: video_botao_5.mp4)
     
     Returns:
@@ -39,8 +42,13 @@ def processar_video(arquivo_path: str, output_filename: str) -> str:
     """
     try:
         output_path = os.path.join(UPLOADS_DIR, output_filename)
+        temp_output_path = os.path.join(UPLOADS_DIR, f"temp_{output_filename}")
         
-        # Comando ffmpeg
+        print(f"[PROCESSAR_VIDEO] Input: {arquivo_path}")
+        print(f"[PROCESSAR_VIDEO] Temp output: {temp_output_path}")
+        print(f"[PROCESSAR_VIDEO] Final output: {output_path}")
+        
+        # Comando ffmpeg - USAR ARQUIVO TEMPORÁRIO como output
         cmd = [
             'ffmpeg',
             '-i', arquivo_path,
@@ -51,25 +59,44 @@ def processar_video(arquivo_path: str, output_filename: str) -> str:
             '-c:a', 'aac',
             '-b:a', '128k',  # Bitrate de áudio
             '-y',  # Sobrescrever arquivo de saída
-            output_path
+            temp_output_path  # ← USAR TEMP, NÃO O FINAL
         ]
         
         log.info(f"🎥 Compactando vídeo: {arquivo_path}")
+        print(f"[PROCESSAR_VIDEO] Executando FFmpeg...")
         
         resultado = subprocess.run(cmd, capture_output=True, timeout=300)
         
-        if resultado.returncode == 0 and os.path.exists(output_path):
+        print(f"[PROCESSAR_VIDEO] Returncode: {resultado.returncode}")
+        
+        if resultado.returncode == 0 and os.path.exists(temp_output_path):
+            print(f"[PROCESSAR_VIDEO] ✓ Temp file criado com sucesso")
+            
+            # Agora renomear o temp para o final
+            if os.path.exists(output_path):
+                os.remove(output_path)
+                print(f"[PROCESSAR_VIDEO] Removido arquivo final anterior")
+            
+            os.rename(temp_output_path, output_path)
+            print(f"[PROCESSAR_VIDEO] Renomeado temp para final")
+            
             tamanho_original = os.path.getsize(arquivo_path) / (1024 * 1024)  # MB
             tamanho_final = os.path.getsize(output_path) / (1024 * 1024)  # MB
             compressao = (1 - tamanho_final / tamanho_original) * 100
             
             log.info(f"✅ Vídeo compactado: {tamanho_original:.1f}MB → {tamanho_final:.1f}MB ({compressao:.0f}%)")
+            print(f"[PROCESSAR_VIDEO] ✓ SUCESSO: {tamanho_original:.1f}MB → {tamanho_final:.1f}MB")
             return output_path
         else:
-            log.error(f"❌ Erro ao compactar vídeo: {resultado.stderr.decode()}")
+            stderr = resultado.stderr.decode() if resultado.stderr else "Sem erro"
+            log.error(f"❌ Erro ao compactar vídeo: {stderr}")
+            print(f"[PROCESSAR_VIDEO] ❌ FFmpeg falhou: {stderr}")
             return None
     except Exception as e:
         log.error(f"❌ Erro processando vídeo: {e}")
+        print(f"[PROCESSAR_VIDEO] ❌ Exception: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -119,12 +146,12 @@ def processar_imagem(arquivo_path: str, output_filename: str) -> str:
 
 def processar_arquivo(arquivo_path: str, tipo: str, botao: int) -> str:
     """
-    Processa arquivo genérico
+    Processa arquivo genérico - VERSÃO RÁPIDA (sem otimização)
     
-    Fluxo especial para .bin do Google Drive:
-    1. Detecta tipo real usando magic bytes
-    2. Renomeia para extensão correta (.mp4, .png, etc)
-    3. Processa o arquivo (reduz video, comprime imagem, etc)
+    Já que é temporário (deletado após app baixar), apenas:
+    1. Detecta tipo real se for .bin
+    2. Renomeia para extensão correta
+    3. Copia para pasta uploads
     
     Args:
         arquivo_path: Caminho do arquivo enviado
@@ -132,45 +159,54 @@ def processar_arquivo(arquivo_path: str, tipo: str, botao: int) -> str:
         botao: Número do botão (0-11)
     
     Returns:
-        Caminho do arquivo processado ou None
+        Caminho do arquivo no uploads ou None
     """
     
+    print(f"\n[PROCESSAR_ARQUIVO] ===== INICIANDO (MODO RÁPIDO) =====")
+    print(f"[PROCESSAR_ARQUIVO] arquivo_path: {arquivo_path}")
+    print(f"[PROCESSAR_ARQUIVO] tipo: {tipo}")
+    print(f"[PROCESSAR_ARQUIVO] botao: {botao}")
+    
     if not os.path.exists(arquivo_path):
+        print(f"[PROCESSAR_ARQUIVO] ❌ Arquivo não encontrado: {arquivo_path}")
         log.error(f"❌ Arquivo não encontrado: {arquivo_path}")
         return None
+    
+    print(f"[PROCESSAR_ARQUIVO] ✓ Arquivo encontrado")
     
     # Se for .bin, detectar tipo real e renomear PRIMEIRO
     if arquivo_path.endswith('.bin'):
         extensao_real = _detect_bin_extension(arquivo_path)
+        print(f"[PROCESSAR_ARQUIVO] Detectado tipo real: {extensao_real}")
         
         if extensao_real == '.bin':
             # Não conseguiu detectar - salvar como bin mesmo
             output_filename = f"{tipo}_botao_{botao}.bin"
             output_path = os.path.join(UPLOADS_DIR, output_filename)
+            print(f"[PROCESSAR_ARQUIVO] Tipo não detectado, salvando como .bin")
             try:
                 shutil.copy(arquivo_path, output_path)
+                print(f"[PROCESSAR_ARQUIVO] ✓ Copiado para: {output_path}")
                 return output_path
             except Exception as e:
+                print(f"[PROCESSAR_ARQUIVO] ❌ Erro ao copiar: {e}")
                 return None
         
-        # Conseguiu detectar tipo real - renomear e processar
+        # Conseguiu detectar tipo real - usar extensão correta
         output_filename = f"{tipo}_botao_{botao}{extensao_real}"
         output_path = os.path.join(UPLOADS_DIR, output_filename)
         
+        print(f"[PROCESSAR_ARQUIVO] Output final: {output_path}")
+        
         try:
-            # Copiar com extensão correta
+            # Copiar com extensão correta (SEM processar)
             shutil.copy(arquivo_path, output_path)
-            
-            # Agora processar o arquivo renomeado (reduzir video, comprimir imagem, etc)
-            if tipo == 'video' and extensao_real.lower() in ['.mp4', '.mkv', '.webm', '.avi', '.mov']:
-                return processar_video(output_path, output_filename)
-            elif tipo == 'imagem' and extensao_real.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
-                return processar_imagem(output_path, output_filename)
-            else:
-                # Não precisa processar (já está com extensão correta)
-                return output_path
+            print(f"[PROCESSAR_ARQUIVO] ✓ Arquivo copiado com sucesso!")
+            print(f"[PROCESSAR_ARQUIVO] ✓ Path: {output_path}")
+            return output_path
                 
         except Exception as e:
+            print(f"[PROCESSAR_ARQUIVO] ❌ Erro ao copiar: {e}")
             return None
     
     # Gerar nome de saída para arquivos que não são .bin
@@ -180,18 +216,18 @@ def processar_arquivo(arquivo_path: str, tipo: str, botao: int) -> str:
     }
     ext = extensao_map.get(tipo, 'bin')
     output_filename = f"{tipo}_botao_{botao}.{ext}"
+    output_path = os.path.join(UPLOADS_DIR, output_filename)
     
-    # Processar
-    if tipo == 'video':
-        return processar_video(arquivo_path, output_filename)
-    elif tipo == 'imagem':
-        return processar_imagem(arquivo_path, output_filename)
-    else:
-        # Copiar arquivo sem processar
-        output_path = os.path.join(UPLOADS_DIR, output_filename)
+    # Copiar arquivo sem processar (modo rápido)
+    print(f"[PROCESSAR_ARQUIVO] Copiando arquivo direto (sem otimização)...")
+    try:
         shutil.copy(arquivo_path, output_path)
+        print(f"[PROCESSAR_ARQUIVO] ✓ Copiado para: {output_path}")
         log.info(f"📁 Arquivo copiado: {output_filename}")
         return output_path
+    except Exception as e:
+        print(f"[PROCESSAR_ARQUIVO] ❌ Erro ao copiar: {e}")
+        return None
 
 
 def _detect_bin_extension(file_path: str) -> str:

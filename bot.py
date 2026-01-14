@@ -416,18 +416,23 @@ async def continuar_processamento_url(arquivo_path, opcao, botao, user_id, nome_
         # Arquivo real no VPS (para download): nome padronizado
         nome_arquivo_real = os.path.basename(arquivo_processado)
         
-        # Registrar no banco com DOIS DADOS:
-        # 1. arquivo: nome real para download (video_botao_7.bin)
-        # 2. nome: nome customizado para exibir no botão (01-10-26_%20primicias-de-fe)
+        # Calcular tamanho
+        tamanho_mb = os.path.getsize(arquivo_processado) / (1024 * 1024)
+        
+        # Registrar no banco com TRES DADOS:
+        # 1. arquivo: nome real para download
+        # 2. nome: nome customizado para exibir no botão
+        # 3. tamanho: tamanho em MB
         dados_registro = {
-            'arquivo': nome_arquivo_real,  # Nome real do arquivo no VPS
-            'nome': nome_final              # Nome customizado para exibição
+            'arquivo': nome_arquivo_real,    # Nome real do arquivo no VPS
+            'nome': nome_final,              # Nome customizado para exibição
+            'tamanho': round(tamanho_mb, 1)  # Tamanho em MB
         }
         registrar_atualizacao(chave_usuario, opcao, botao, dados_registro)
         
-        print(f"✅ Arquivo registrado: {nome_arquivo_real}")
+        print(f"✅ Arquivo registrado: {nome_arquivo_real} ({tamanho_mb:.1f}MB)")
         print(f"   📁 Exibição no botão: {nome_final}")
-        log.info(f"✅ Arquivo registrado: {nome_arquivo_real} (exibir como: {nome_final})")
+        log.info(f"✅ Arquivo registrado: {nome_arquivo_real} (exibir como: {nome_final}) - {tamanho_mb:.1f}MB")
     
     tamanho = os.path.getsize(arquivo_processado) / (1024 * 1024)
     embed_final = discord.Embed(
@@ -616,9 +621,18 @@ async def processar_arquivo_usuario(message: discord.Message, user_id: int, opca
         from database import listar_chaves_ativas
         import tempfile
         
+        print(f"\n{'='*70}")
+        print(f"[INICIO] processar_arquivo_usuario()")
+        print(f"[USER_CHECK] user_id={user_id} | author.id={message.author.id}")
+        print(f"{'='*70}")
+        
         # ============ ARQUIVO ANEXADO ============
         if message.attachments:
+            print(f"[1] Detectado attachment")
             attachment = message.attachments[0]
+            print(f"[2] Nome: {attachment.filename}")
+            print(f"[3] Tamanho: {attachment.size / (1024*1024):.1f}MB")
+            
             tipos_permitidos = {
                 'video': ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.bin'],
                 'imagem': ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.bin'],
@@ -626,73 +640,170 @@ async def processar_arquivo_usuario(message: discord.Message, user_id: int, opca
             }
             
             ext = os.path.splitext(attachment.filename.lower())[1]
+            print(f"[4] Extensão: {ext}")
             
             # Verificar se é arquivo compactado
             eh_compactado = eh_arquivo_compactado(attachment.filename)
+            print(f"[5] É compactado? {eh_compactado}")
             
             if eh_compactado:
                 # Aceitar arquivo compactado para qualquer tipo
                 pass
             elif opcao not in tipos_permitidos or ext not in tipos_permitidos.get(opcao, []):
+                print(f"[ERRO] Tipo inválido!")
                 await message.reply(f"❌ Tipo inválido! Para {opcao}: {', '.join(tipos_permitidos[opcao])}", mention_author=False)
                 return
             
+            print(f"[6] Enviando 'Processando arquivo...'")
             await message.reply("⏳ Processando arquivo...", mention_author=False)
             
+            print(f"[7] Fazendo download via aiohttp...")
             with tempfile.NamedTemporaryFile(delete=False) as tmp:
                 temp_path = tmp.name
+                print(f"[8] Arquivo temp: {temp_path}")
                 async with aiohttp.ClientSession() as session:
                     async with session.get(attachment.url) as resp:
-                        tmp.write(await resp.read())
+                        data = await resp.read()
+                        print(f"[9] Download completo: {len(data)} bytes")
+                        tmp.write(data)
             
-            print(f"📥 Arquivo: {attachment.filename} ({attachment.size / (1024*1024):.1f}MB)")
+            print(f"[10] Arquivo temp salvo: {os.path.exists(temp_path)}")
+            print(f"[11] Tamanho: {os.path.getsize(temp_path) / (1024*1024):.1f}MB")
             
             # Se é compactado, extrair e filtrar
             if eh_compactado:
-                print(f"📦 Detectado arquivo compactado: {attachment.filename}")
+                print(f"[12] Extraindo arquivo compactado...")
                 arquivo_processado = extrair_arquivo_compactado(temp_path, opcao)
+                print(f"[13] Resultado: {arquivo_processado}")
                 if not arquivo_processado:
+                    print(f"[ERRO] Falha na extração")
                     await message.reply(f"❌ Erro ao extrair arquivo compactado ou nenhum arquivo do tipo '{opcao}' encontrado", mention_author=False)
                     try:
                         os.remove(temp_path)
                     except:
                         pass
                     return
-                print(f"✅ Arquivo extraído e filtrado: {arquivo_processado}")
+                print(f"[14] Arquivo extraído OK")
             else:
+                print(f"[15] Processando arquivo normalmente...")
                 arquivo_processado = processar_arquivo(temp_path, opcao, botao)
+                print(f"[16] Resultado: {arquivo_processado}")
             
+            print(f"[17] Deletando temp: {temp_path}")
             try:
                 os.remove(temp_path)
-            except:
+                print(f"[18] Temp deletado OK")
+            except Exception as e:
+                print(f"[18] Erro ao deletar temp: {e}")
                 pass
             
             if not arquivo_processado:
+                print(f"[ERRO] arquivo_processado é None/vazio")
                 await message.reply("❌ Erro ao processar arquivo", mention_author=False)
                 return
             
+            print(f"[19] Arquivo processado: {arquivo_processado}")
+            print(f"[20] Arquivo existe? {os.path.exists(arquivo_processado)}")
+            if os.path.exists(arquivo_processado):
+                print(f"[21] Tamanho: {os.path.getsize(arquivo_processado) / (1024*1024):.1f}MB")
+            
             nome_arquivo = os.path.basename(arquivo_processado)
+            print(f"[22] Nome do arquivo: {nome_arquivo}")
+            
+            # ❓ PERGUNTAR AO USUÁRIO O NOME QUE ELE QUER DAR AO BOTÃO
+            print(f"[23] Perguntando nome ao usuário...")
+            await message.reply(
+                f"📝 **Qual nome você quer para este botão?**\n\n"
+                f"Arquivo: `{nome_arquivo}`\n\n"
+                f"Envie o nome desejado ou deixe em branco para usar: `{nome_arquivo}`",
+                mention_author=False
+            )
+            
+            # Aguardar resposta do usuário
+            try:
+                print(f"[24] Aguardando resposta do usuário...")
+                resposta = await bot.wait_for(
+                    'message',
+                    check=lambda m: m.author.id == user_id and m.guild.id == message.guild.id,
+                    timeout=60.0
+                )
+                
+                # Obter nome fornecido ou usar sugestão
+                nome_final = resposta.content.strip()
+                if not nome_final:
+                    nome_final = nome_arquivo
+                
+                print(f"[25] Usuário digitou: {nome_final}")
+                log.info(f"✅ Usuário digitou nome: {nome_final}")
+                
+                # Deletar mensagem do usuário
+                try:
+                    await resposta.delete()
+                except:
+                    pass
+                    
+            except asyncio.TimeoutError:
+                # Se timeout, usar nome do arquivo
+                nome_final = nome_arquivo
+                print(f"[25] Timeout - usando: {nome_final}")
+                log.info(f"⏱️ Timeout! Usando nome do arquivo: {nome_final}")
+            
+            print(f"[26] Nome final: {nome_final}")
+            print(f"[27] Listando chaves ativas...")
             chaves = listar_chaves_ativas()
+            print(f"[28] Chaves ativas: {len(chaves)}")
+            if chaves:
+                print(f"[28.5] Detalhes das chaves:")
+                for idx, c in enumerate(chaves):
+                    print(f"       [{idx}] user_id={c['user_id']}, chave={c['chave'][:15]}...")
             chave_usuario = None
             for c in chaves:
+                print(f"[28.9] Comparando: user_id={user_id} com c['user_id']={c['user_id']}")
                 if c['user_id'] == user_id:
                     chave_usuario = c['chave']
+                    print(f"[29] ✓ Chave encontrada: {chave_usuario[:20]}...")
                     break
             
-            if chave_usuario:
-                # Registrar com indicação se foi extraído
-                dados_atualizacao = {'conteudo': nome_arquivo}
-                if eh_compactado:
-                    dados_atualizacao['extraido_de'] = attachment.filename
-                registrar_atualizacao(chave_usuario, opcao, botao, dados_atualizacao)
-                print(f"✅ Arquivo registrado: {nome_arquivo}")
+            if not chave_usuario:
+                print(f"[ERRO FATAL] Chave do usuário não encontrada!")
+                await message.reply("❌ ERRO: Não foi possível encontrar sua chave de sincronização. Tente novamente ou contate suporte.", mention_author=False)
+                return
+            
+            # Registrar com formato correto para sincronizador
+            # formato: {'arquivo': 'video_botao_8.mp4', 'nome': 'teste 2', 'tamanho': 143.7}
+            
+            # Calcular tamanho ANTES de registrar
+            print(f"[30] Verificando arquivo antes de registrar...")
+            if not os.path.exists(arquivo_processado):
+                print(f"[ERRO CRITICO] Arquivo foi deletado antes de registrar!")
+                await message.reply("❌ ERRO CRITICO: Arquivo foi deletado!", mention_author=False)
+                return
+            
+            tamanho_mb = os.path.getsize(arquivo_processado) / (1024 * 1024)
+            print(f"[31] Tamanho: {tamanho_mb:.1f}MB")
+            
+            dados_atualizacao = {
+                'arquivo': nome_arquivo,    # Nome real do arquivo no VPS (video_botao_8.mp4)
+                'nome': nome_final,         # Nome customizado que usuário digitou
+                'tamanho': round(tamanho_mb, 1)  # Tamanho em MB
+            }
+            if eh_compactado:
+                dados_atualizacao['extraido_de'] = attachment.filename
+            
+            print(f"[32] Dados para registrar: {dados_atualizacao}")
+            print(f"[33] Registrando no banco...")
+            registrar_atualizacao(chave_usuario, opcao, botao, dados_atualizacao)
+            print(f"[34] Registrado com sucesso!")
+            print(f"✅ Arquivo registrado: {nome_arquivo} ({tamanho_mb:.1f}MB)")
+            print(f"   📁 Exibição no botão: {nome_final}")
             
             tamanho = os.path.getsize(arquivo_processado) / (1024 * 1024)
             
-            descricao = f"**Botão {botao + 1}**\n📁 {nome_arquivo}\n📊 {tamanho:.1f}MB\n✨ Sincronizado!\n\n💡 *Se você já tinha enviado outro arquivo para este botão, o anterior foi descartado automaticamente.*"
+            descricao = f"**Botão {botao + 1}**\n📁 {nome_final}\n📊 {tamanho:.1f}MB\n✨ Sincronizado!\n\n💡 *Se você já tinha enviado outro arquivo para este botão, o anterior foi descartado automaticamente.*"
             if eh_compactado:
                 descricao += f"\n\n📦 *Extraído de: {attachment.filename}*"
             
+            print(f"[35] Enviando resposta ao usuário...")
             embed = discord.Embed(
                 title="✅ ATUALIZADO!",
                 description=descricao,
@@ -705,6 +816,9 @@ async def processar_arquivo_usuario(message: discord.Message, user_id: int, opca
                 await limpar_canal_manter_ultima(message.channel)
             except Exception as e:
                 print(f"⚠️ Erro ao limpar canal: {e}")
+            
+            print(f"[FIM] processar_arquivo_usuario() - SUCESSO")
+            print(f"{'='*70}\n")
         
         # ============ URL ENVIADA ============
         elif re.search(r'https?://', message.content):
@@ -713,7 +827,9 @@ async def processar_arquivo_usuario(message: discord.Message, user_id: int, opca
                 await processar_url_usuario(message, user_id, opcao, botao, urls[0])
         
     except Exception as e:
-        print(f"❌ Erro: {e}")
+        print(f"[ERRO GERAL] {e}")
+        import traceback
+        traceback.print_exc()
         log.error(f"❌ Erro ao processar arquivo: {e}", exc_info=True)
         await message.reply(f"❌ Erro: {str(e)}", mention_author=False)
 
@@ -895,24 +1011,47 @@ async def on_message(message):
         # Gerar chave (APENAS com "oi")
         if content.lower() == "oi":
             print(f"✅ Requisição de chave detectada! Gerando e autenticando...")
+            print(f"[DEBUG-NAO-AUTH] Entrando no bloco 'oi' - não autenticado")
             log.info(f"✅ Requisição de chave detectada para user {user_id}")
             try:
                 # Gera a chave E autentica automaticamente no banco
                 chave = criar_chave(user_id, guild_id, message.channel.id)
+                print(f"[DEBUG-NAO-AUTH] Chave retornada: {chave}")
                 
                 if chave:
-                    embed = discord.Embed(
-                        title="🔐 CHAVE DE AUTENTICAÇÃO",
-                        description=f"Sua chave é:\n\n**{chave}**\n\n✅ Já foi autenticada!\n\nCopie esta chave e coloque no APP para sincronizar.",
-                        color=discord.Color.green()
-                    )
-                    embed.set_footer(text="⏰ Válida por 5 minutos")
+                    # Verifica se é chave NEW ou REUTILIZADA
+                    from database import listar_chaves_ativas
+                    chaves = listar_chaves_ativas()
                     
-                    await message.reply(embed=embed, mention_author=False)
-                    print(f"✅ Chave enviada para {user_id}")
-                    log.info(f"✅ Chave enviada para {user_id}")
-                    return  # 🛑 Sair - usuário digita "oi" de novo para menu
+                    # Contar quantas vezes este user_id aparece
+                    count_user = sum(1 for c in chaves if c['user_id'] == user_id)
+                    
+                    # Se é a primeira chave (count == 1), é nova
+                    # Se count > 1, foi reutilizada
+                    
+                    if count_user == 1:
+                        # Primeira chave - NOVA - mostrar código
+                        print(f"[DEBUG-NAO-AUTH] Chave NOVA criada")
+                        embed = discord.Embed(
+                            title="🔐 CHAVE DE AUTENTICAÇÃO",
+                            description=f"Sua chave é:\n\n**{chave}**\n\n✅ Já foi autenticada!\n\nCopie esta chave e coloque no APP para sincronizar.",
+                            color=discord.Color.green()
+                        )
+                        embed.set_footer(text="⏰ Válida por 5 minutos")
+                        
+                        await message.reply(embed=embed, mention_author=False)
+                        print(f"✅ Chave enviada para {user_id}")
+                        print(f"[DEBUG-NAO-AUTH] Fazendo RETURN agora!")
+                        log.info(f"✅ Chave enviada para {user_id}")
+                        return  # 🛑 Sair - usuário digita "oi" de novo para menu
+                    else:
+                        # Chave REUTILIZADA - ir direto pro menu
+                        print(f"[DEBUG-NAO-AUTH] Chave REUTILIZADA (anterior). Mostrando menu direto!")
+                        await mostrar_menu_principal(message.channel)
+                        print(f"[DEBUG-NAO-AUTH] Menu enviado! Fazendo RETURN!")
+                        return
                 else:
+                    print(f"[DEBUG-NAO-AUTH] Chave é None!")
                     await message.reply("❌ Erro ao gerar chave. Tente novamente.", mention_author=False)
                     log.error(f"❌ criar_chave() retornou None para user {user_id}")
                     return  # 🛑 Sair se erro
@@ -926,13 +1065,17 @@ async def on_message(message):
     
     # ============ AUTENTICADO - PROCESSAR DADOS ============
     else:
+        print(f"✅ USUÁRIO AUTENTICADO {user_id}")
         # Se usuário autenticado mandar "oi", mostra o menu principal
         if content.lower() == "oi":
             print(f"✅ Usuário autenticado pediu menu (oi)")
+            print(f"[DEBUG-AUTH] Entrando no bloco 'oi' - autenticado")
             log.info(f"✅ Usuário autenticado {user_id} pediu menu")
             try:
+                print(f"[DEBUG-AUTH] Chamando mostrar_menu_principal...")
                 await mostrar_menu_principal(message.channel)
                 print(f"✅ Menu enviado com sucesso!")
+                print(f"[DEBUG-AUTH] Fazendo RETURN agora!")
                 log.info(f"✅ Menu enviado com sucesso!")
             except Exception as e:
                 print(f"❌ Erro ao mostrar menu: {e}")
